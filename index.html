@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(45deg, blue, cyan);
+            background-size: 200% 200%;
+            animation: colorShift 5s ease-in-out infinite;
+        }
+        @keyframes colorShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        #game-container {
+            position: relative;
+        }
+        #canvas {
+            background-color: white;
+            border: 1px solid black;
+        }
+        #hearts {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+        }
+        .heart {
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            background-color: red;
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+        }
+        #mobile-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+        }
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            margin: 0 10px;
+            font-size: 24px;
+        }
+        @media (max-width: 600px) {
+            #mobile-controls {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <div id="hearts">
+            <div class="heart"></div>
+            <div class="heart"></div>
+            <div class="heart"></div>
+        </div>
+        <div id="game-over">
+            <h1>Game Over</h1>
+            <p id="score-display">Score: 0</p>
+            <button id="play-again">Play Again</button>
+        </div>
+        <div id="mobile-controls">
+            <button class="control-btn" id="up-btn">↑</button>
+            <button class="control-btn" id="down-btn">↓</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const heartElements = document.querySelectorAll('.heart');
+        const gameOverScreen = document.getElementById('game-over');
+        const scoreDisplay = document.getElementById('score-display');
+        const playAgainBtn = document.getElementById('play-again');
+        const upBtn = document.getElementById('up-btn');
+        const downBtn = document.getElementById('down-btn');
+
+        const player = {
+            x: 100,
+            y: canvas.height / 2,
+            radius: 20,
+            color: 'black',
+            speed: 5
+        };
+
+        let waves = [];
+        let lives = 3;
+        let score = 0;
+        let invincible = false;
+        let invincibleTimer = 0;
+        const invincibleDuration = 1000;
+        let isGameOver = false;
+        let upPressed = false;
+        let downPressed = false;
+        let frameCount = 0;
+        const waveSpawnInterval = 120;
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') upPressed = true;
+            else if (e.key === 'ArrowDown') downPressed = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowUp') upPressed = false;
+            else if (e.key === 'ArrowDown') downPressed = false;
+        });
+
+        upBtn.addEventListener('touchstart', () => upPressed = true);
+        upBtn.addEventListener('touchend', () => upPressed = false);
+        downBtn.addEventListener('touchstart', () => downPressed = true);
+        downBtn.addEventListener('touchend', () => downPressed = false);
+
+        upBtn.addEventListener('mousedown', () => upPressed = true);
+        upBtn.addEventListener('mouseup', () => upPressed = false);
+        downBtn.addEventListener('mousedown', () => downPressed = true);
+        downBtn.addEventListener('mouseup', () => downPressed = false);
+
+        playAgainBtn.addEventListener('click', () => location.reload());
+
+        function spawnWave() {
+            const gapHeight = 100;
+            const minGapY = gapHeight / 2 + 50;
+            const maxGapY = canvas.height - gapHeight / 2 - 50;
+            const gapY = Math.random() * (maxGapY - minGapY) + minGapY;
+            const wave = {
+                x: canvas.width,
+                gapY: gapY,
+                gapHeight: gapHeight,
+                width: 20,
+                speed: 3,
+                passed: false
+            };
+            waves.push(wave);
+        }
+
+        function update() {
+            if (upPressed) player.y -= player.speed;
+            if (downPressed) player.y += player.speed;
+
+            if (player.y - player.radius < 0) player.y = player.radius;
+            if (player.y + player.radius > canvas.height) player.y = canvas.height - player.radius;
+
+            frameCount++;
+            if (frameCount % waveSpawnInterval === 0) spawnWave();
+
+            waves.forEach(wave => {
+                wave.x -= wave.speed;
+                if (!wave.passed && wave.x + wave.width < player.x - player.radius) {
+                    wave.passed = true;
+                    score++;
+                }
+            });
+            waves = waves.filter(wave => wave.x + wave.width > 0);
+
+            if (invincible) {
+                invincibleTimer -= 16;
+                if (invincibleTimer <= 0) invincible = false;
+            }
+
+            if (!invincible) {
+                waves.forEach(wave => {
+                    if (player.x >= wave.x && player.x <= wave.x + wave.width) {
+                        if (player.y < wave.gapY - wave.gapHeight / 2 || player.y > wave.gapY + wave.gapHeight / 2) {
+                            lives--;
+                            invincible = true;
+                            invincibleTimer = invincibleDuration;
+                            if (lives < 3) heartElements[2].style.display = 'none';
+                            if (lives < 2) heartElements[1].style.display = 'none';
+                            if (lives < 1) {
+                                heartElements[0].style.display = 'none';
+                                gameOver();
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function drawPlayer() {
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = player.color;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawWaves() {
+            waves.forEach(wave => {
+                ctx.fillStyle = 'blue';
+                ctx.fillRect(wave.x, 0, wave.width, wave.gapY - wave.gapHeight / 2);
+                ctx.fillRect(wave.x, wave.gapY + wave.gapHeight / 2, wave.width, canvas.height - (wave.gapY + wave.gapHeight / 2));
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawWaves();
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            scoreDisplay.textContent = `Score: ${score}`;
+            gameOverScreen.style.display = 'block';
+        }
+
+        function gameLoop() {
+            if (!isGameOver) {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
